@@ -1,0 +1,21 @@
+# Zig
+.zig-cache/
+zig-out/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Build artifacts
+*.o
+*.obj
+
+# Test files
+test_args.zig
+/tmp/
