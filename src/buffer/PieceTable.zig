@@ -143,7 +143,7 @@ pub const PieceTable = struct {
         return count;
     }
 
-    fn charAt(self: *const PieceTable, position: usize) u8 {
+    pub fn charAt(self: *const PieceTable, position: usize) u8 {
         if (position >= self.length) return 0;
         const idx = self.pieceIndex(position);
         const piece = self.pieces.items[idx];

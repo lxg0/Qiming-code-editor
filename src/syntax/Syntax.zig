@@ -86,8 +86,8 @@ pub const SyntaxEngine = struct {
         return SyntaxEngine{ .allocator = allocator, .kind = .text };
     }
 
-    pub fn deinit(self: *SyntaxEngine) void {
-        _ = self;
+    pub fn deinit(_: *SyntaxEngine) void {
+        // (self used below)
     }
 
     pub fn setLanguage(self: *SyntaxEngine, kind: SyntaxKind) void {
@@ -125,8 +125,7 @@ pub const SyntaxEngine = struct {
 
     fn highlightZig(self: *SyntaxEngine, line: []const u8) !HighlightLine {
         _ = self;
-        var hl = HighlightLine.init(self.allocator);
-        const keywords = std.ComptimeStringMap(TokenType, .{
+        const keywords = std.static_string_map.StaticStringMap(TokenType).initComptime(.{
             .{ "const", .keyword }, .{ "var", .keyword }, .{ "fn", .keyword },
             .{ "pub", .keyword }, .{ "return", .keyword }, .{ "if", .keyword },
             .{ "else", .keyword }, .{ "for", .keyword }, .{ "while", .keyword },
@@ -149,9 +148,9 @@ pub const SyntaxEngine = struct {
         return tokenizeLine(line, keywords);
     }
 
-    fn highlightPython(self: *SyntaxEngine, line: []const u8) !HighlightLine {
-        _ = self;
-        const keywords = std.ComptimeStringMap(TokenType, .{
+    fn highlightPython(_: *SyntaxEngine, line: []const u8) !HighlightLine {
+        // (self used below)
+        const keywords = std.static_string_map.StaticStringMap(TokenType).initComptime(.{
             .{ "def", .keyword }, .{ "class", .keyword }, .{ "return", .keyword },
             .{ "if", .keyword }, .{ "elif", .keyword }, .{ "else", .keyword },
             .{ "for", .keyword }, .{ "while", .keyword }, .{ "import", .keyword },
@@ -170,9 +169,9 @@ pub const SyntaxEngine = struct {
         return tokenizeLine(line, keywords);
     }
 
-    fn highlightJsTs(self: *SyntaxEngine, line: []const u8) !HighlightLine {
-        _ = self;
-        const keywords = std.ComptimeStringMap(TokenType, .{
+    fn highlightJsTs(_: *SyntaxEngine, line: []const u8) !HighlightLine {
+        // (self used below)
+        const keywords = std.static_string_map.StaticStringMap(TokenType).initComptime(.{
             .{ "function", .keyword }, .{ "const", .keyword }, .{ "let", .keyword },
             .{ "var", .keyword }, .{ "return", .keyword }, .{ "if", .keyword },
             .{ "else", .keyword }, .{ "for", .keyword }, .{ "while", .keyword },
@@ -193,9 +192,9 @@ pub const SyntaxEngine = struct {
         return tokenizeLine(line, keywords);
     }
 
-    fn highlightRust(self: *SyntaxEngine, line: []const u8) !HighlightLine {
-        _ = self;
-        const keywords = std.ComptimeStringMap(TokenType, .{
+    fn highlightRust(_: *SyntaxEngine, line: []const u8) !HighlightLine {
+        // (self used below)
+        const keywords = std.static_string_map.StaticStringMap(TokenType).initComptime(.{
             .{ "fn", .keyword }, .{ "let", .keyword }, .{ "mut", .keyword },
             .{ "const", .keyword }, .{ "return", .keyword }, .{ "if", .keyword },
             .{ "else", .keyword }, .{ "for", .keyword }, .{ "while", .keyword },
@@ -231,14 +230,14 @@ pub const SyntaxEngine = struct {
     }
 
     fn highlightCss(self: *SyntaxEngine, line: []const u8) !HighlightLine {
-        _ = self;
+        // (self used below)
         var hl = HighlightLine.init(self.allocator);
         if (line.len > 0) try hl.addToken(0, line.len, .unknown);
         return hl;
     }
 
     fn highlightJson(self: *SyntaxEngine, line: []const u8) !HighlightLine {
-        _ = self;
+        // (self used below)
         var hl = HighlightLine.init(self.allocator);
         var i: usize = 0;
         while (i < line.len) {
@@ -265,7 +264,7 @@ pub const SyntaxEngine = struct {
     }
 
     fn highlightMarkdown(self: *SyntaxEngine, line: []const u8) !HighlightLine {
-        _ = self;
+        // (self used below)
         var hl = HighlightLine.init(self.allocator);
         if (line.len == 0) {
             try hl.addToken(0, 0, .whitespace);
@@ -283,9 +282,9 @@ pub const SyntaxEngine = struct {
         return hl;
     }
 
-    fn highlightC(self: *SyntaxEngine, line: []const u8) !HighlightLine {
-        _ = self;
-        const keywords = std.ComptimeStringMap(TokenType, .{
+    fn highlightC(_: *SyntaxEngine, line: []const u8) !HighlightLine {
+        // (self used below)
+        const keywords = std.static_string_map.StaticStringMap(TokenType).initComptime(.{
             .{ "int", .type }, .{ "char", .type }, .{ "float", .type },
             .{ "double", .type }, .{ "void", .type }, .{ "long", .type },
             .{ "short", .type }, .{ "unsigned", .type }, .{ "signed", .type },
@@ -320,7 +319,7 @@ fn detectLanguage(ext: []const u8) SyntaxKind {
 }
 
 fn tokenizeLine(line: []const u8, keywords: anytype) !HighlightLine {
-    var allocator = std.heap.page_allocator;
+    const allocator = std.heap.page_allocator;
     var hl = HighlightLine{ .tokens = std.array_list.Managed(Token).init(allocator), .allocator = allocator };
     var i: usize = 0;
     while (i < line.len) {
@@ -343,9 +342,14 @@ fn tokenizeLine(line: []const u8, keywords: anytype) !HighlightLine {
             const quote = line[i];
             var j = i + 1;
             while (j < line.len) {
-                if (line[j] == '\\') j += 2;
-                else if (line[j] == quote) { j += 1; break; }
-                else j += 1;
+                if (line[j] == '\\') {
+                    j += 2;
+                } else if (line[j] == quote) {
+                    j += 1;
+                    break;
+                } else {
+                    j += 1;
+                }
             }
             try hl.addToken(i, j, .string);
             i = j;

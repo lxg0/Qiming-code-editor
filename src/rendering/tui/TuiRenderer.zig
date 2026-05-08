@@ -136,11 +136,16 @@ pub const TuiRenderer = struct {
     }
 
     pub fn getSize(self: *TuiRenderer) !struct { width: usize, height: usize } {
-        var ws: std.posix.winsize = undefined;
-        const rc = std.posix.ioctl(0, std.posix.T.IOCGWINSZ, @intFromPtr(&ws));
-        if (rc == 0 and ws.ws_col > 0 and ws.ws_row > 0) {
-            self.width = ws.ws_col;
-            self.height = ws.ws_row;
+        var ws: std.c.winsize = undefined;
+        const TIOCGWINSZ: c_int = switch (@import("builtin").target.os.tag) {
+            .macos => 0x40087468,
+            .linux => 0x5413,
+            else   => 0x5413,
+        };
+        const rc = std.c.ioctl(0, TIOCGWINSZ, &ws);
+        if (rc == 0 and ws.col > 0 and ws.row > 0) {
+            self.width = ws.col;
+            self.height = ws.row;
         }
         return .{ .width = self.width, .height = self.height };
     }

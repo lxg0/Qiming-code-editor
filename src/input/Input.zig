@@ -189,7 +189,7 @@ pub const InputReader = struct {
 
     pub fn readUtf8Sequence(self: *InputReader, first_byte: u8) ![]u8 {
         _ = self;
-        _ = first_byte;
-        return &[_]u8{first_byte}; // Simplified
+        const b = first_byte;
+        return @constCast(&[_]u8{b}); // Simplified
     }
 };
