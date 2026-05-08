@@ -11,6 +11,7 @@ pub extern fn qiming_macos_set_drawable_size(handle: ?*anyopaque, width: c_int, 
 pub extern fn qiming_macos_get_metal_layer(handle: ?*anyopaque) ?*anyopaque;
 pub extern fn qiming_macos_get_metal_device(handle: ?*anyopaque) ?*anyopaque;
 pub extern fn qiming_macos_pump_events() c_int;
+pub extern fn qiming_macos_get_backing_scale_factor() f64;
 
 // ── Metal pipeline setup ───────────────────────────────────────────────────────
 /// Call once after creating the window. Returns 1 on success.

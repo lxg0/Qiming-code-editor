@@ -22,7 +22,8 @@ pub const NativeWindow = struct {
     config: WindowConfig,
     width: u32,
     height: u32,
-    scale: f32,
+    scale: f32,          // backingScaleFactor (2.0 on Retina)
+    scale_factor: f32,   // display's native pixel ratio
 
     // Native window handles (opaque until we link ObjC)
     native_handle: ?*anyopaque,
@@ -45,7 +46,8 @@ pub const NativeWindow = struct {
             .config = config,
             .width = config.width,
             .height = config.height,
-            .scale = 2.0, // Retina-aware
+            .scale = 2.0,
+            .scale_factor = 2.0,
             .native_handle = null,
             .ns_window = null,
             .ns_view = null,
@@ -87,6 +89,9 @@ pub const NativeWindow = struct {
         self.metal_layer = Bridge.qiming_macos_get_metal_layer(handle);
         self.renderer.device = Bridge.qiming_macos_get_metal_device(handle);
         self.renderer.metal_layer = self.metal_layer;
+        self.scale_factor = @as(f32, @floatCast(Bridge.qiming_macos_get_backing_scale_factor()));
+        self.scale = self.scale_factor;
+        self.renderer.scale = self.scale;
 
         // Initialize Metal pipeline (shaders, command queue, glyph atlas)
         try self.renderer.setup(handle);
@@ -125,12 +130,13 @@ pub const NativeWindow = struct {
 
     /// Handle resize event
     pub fn handleResize(self: *NativeWindow, width: u32, height: u32) void {
-        if (width == self.width and height == self.height) return;
+        if (width == self.width and height == self.height and false) return;
         self.width = width;
         self.height = height;
+        // Apply the actual backing scale to the metal layer drawable size
         self.renderer.resize(width, height);
         if (self.native_handle) |handle| {
-            Bridge.qiming_macos_set_drawable_size(handle, @intCast(width), @intCast(height), self.scale);
+            Bridge.qiming_macos_set_drawable_size(handle, @intCast(width), @intCast(height), self.scale_factor);
         }
     }
 

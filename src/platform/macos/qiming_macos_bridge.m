@@ -451,6 +451,10 @@ void *qiming_macos_get_metal_device(void *h) {
     return (__bridge void *)((QimingMacOSWindow *)h)->device;
 }
 
+double qiming_macos_get_backing_scale_factor(void) {
+    return (double)[NSScreen mainScreen].backingScaleFactor;
+}
+
 int qiming_macos_pump_events(void) {
     @autoreleasepool {
         NSEvent *ev;
