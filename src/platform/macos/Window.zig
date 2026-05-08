@@ -87,8 +87,9 @@ pub const NativeWindow = struct {
         self.metal_layer = Bridge.qiming_macos_get_metal_layer(handle);
         self.renderer.device = Bridge.qiming_macos_get_metal_device(handle);
         self.renderer.metal_layer = self.metal_layer;
-        try self.renderer.createDevice();
-        try self.renderer.createMetalLayer(self.ns_view);
+
+        // Initialize Metal pipeline (shaders, command queue, glyph atlas)
+        try self.renderer.setup(handle);
 
         self.visible = true;
         self.focused = true;
@@ -105,12 +106,12 @@ pub const NativeWindow = struct {
         std.debug.print("[Window] 窗口已关闭\n", .{});
     }
 
-    /// Begin frame rendering
-    pub fn beginFrame(self: *NativeWindow) void {
-        self.renderer.beginFrame();
+    /// Begin frame rendering. Returns false if no drawable is available.
+    pub fn beginFrame(self: *NativeWindow) bool {
+        return self.renderer.beginFrame();
     }
 
-    /// End frame and present to screen
+    /// End frame and present to screen.
     pub fn endFrame(self: *NativeWindow) void {
         self.renderer.endFrame();
     }

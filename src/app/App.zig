@@ -309,30 +309,224 @@ pub const App = struct {
 
         self.running = true;
         while (self.running) {
-            // Pump NSApplication events (runs NSRunLoop briefly)
+            // ── pump NSApplication events ──
             _ = Bridge.qiming_macos_pump_events();
 
-            // Check if user closed the window
+            // ── drain bridge event queue ──
+            while (window.renderer.pollEvent()) |ev| {
+                try self.handleGuiEvent(ev, &window);
+            }
+
+            // ── check window close ──
             if (Bridge.qiming_macos_window_should_close(window.native_handle) != 0) {
                 self.running = false;
                 break;
             }
 
-            // Begin frame
-            window.beginFrame();
-            self.renderEditorFrame(&window);
-            window.endFrame();
+            // ── render ──
+            if (window.beginFrame()) {
+                try self.renderEditorFrame(&window);
+                window.endFrame();
+            }
         }
 
         self.log.info("[GUI] 事件循环退出", .{});
     }
 
-    /// Placeholder for Metal draw calls — to be expanded in Phase 2
-    fn renderEditorFrame(self: *App, window: anytype) void {
-        _ = self;
-        // window.renderer.clear(window.renderer.theme.background);
-        // window.renderer.drawText("Qiming Editor", 20, 50, theme.foreground, 16);
-        _ = window;
+    fn handleGuiEvent(self: *App, ev: @import("../platform/macos/Bridge.zig").Event, window: anytype) !void {
+        const Bridge = @import("../platform/macos/Bridge.zig");
+        switch (ev.type) {
+            Bridge.EVENT_CLOSE => self.running = false,
+
+            Bridge.EVENT_RESIZE => {
+                const w: u32 = @intCast(@max(ev.width,  1));
+                const h: u32 = @intCast(@max(ev.height, 1));
+                window.handleResize(w, h);
+            },
+
+            Bridge.EVENT_KEY => {
+                // ev.text contains the UTF-8 character(s)
+                const txt = std.mem.sliceTo(&ev.text, 0);
+                const mods = ev.modifiers;
+                const ctrl_cmd = (mods & 0x100000) != 0 or (mods & 0x000008) != 0; // NSEventModifierFlagCommand | Control
+
+                if (ctrl_cmd) {
+                    // macOS uses Cmd for most shortcuts
+                    if (txt.len > 0) {
+                        switch (txt[0]) {
+                            'q', 'Q' => self.running = false,
+                            's', 'S' => try self.editor.saveFile(null),
+                            'z', 'Z' => try self.editor.undo(),
+                            'y', 'Y' => try self.editor.redo(),
+                            else => {},
+                        }
+                    }
+                } else if (txt.len > 0 and txt[0] >= 0x20) {
+                    // Printable character input
+                    try self.editor.insertAtCursor(txt);
+                    self.editor.activeView().scrollToCursor();
+                } else {
+                    // Special keys by keycode (macOS Virtual Key codes)
+                    switch (ev.keycode) {
+                        0x33 => try self.editor.deleteAtCursor(.left),   // Backspace
+                        0x75 => try self.editor.deleteAtCursor(.right),  // Delete
+                        0x24, 0x4C => try self.editor.insertAtCursor("\n"), // Return / numpad Enter
+                        0x30 => try self.editor.insertAtCursor("    "),   // Tab
+                        // Arrow keys
+                        0x7B => {
+                            const cur = self.editor.activeView().primaryCursorMut();
+                            if (cur.position > 0) cur.setPosition(cur.position - 1);
+                        },
+                        0x7C => {
+                            const cur = self.editor.activeView().primaryCursorMut();
+                            const doc = self.editor.activeDocument();
+                            if (cur.position < doc.buffer.len()) cur.setPosition(cur.position + 1);
+                        },
+                        0x7E => { // Up
+                            const doc = self.editor.activeDocument();
+                            const cur = self.editor.activeView().primaryCursorMut();
+                            const ls  = doc.buffer.lineStart(cur.position);
+                            if (ls > 0) {
+                                const pls = doc.buffer.lineStart(ls -| 1);
+                                const col = cur.position - ls;
+                                cur.setPosition(pls + @min(col, (ls - 1) - pls));
+                            }
+                        },
+                        0x7D => { // Down
+                            const doc = self.editor.activeDocument();
+                            const cur = self.editor.activeView().primaryCursorMut();
+                            const le  = doc.buffer.lineEnd(cur.position);
+                            if (le < doc.buffer.len()) {
+                                const col = cur.position - doc.buffer.lineStart(cur.position);
+                                const nle = doc.buffer.lineEnd(le + 1);
+                                cur.setPosition((le + 1) + @min(col, nle - (le + 1)));
+                            }
+                        },
+                        0x73 => { // Home
+                            const doc = self.editor.activeDocument();
+                            const cur = self.editor.activeView().primaryCursorMut();
+                            cur.setPosition(doc.buffer.lineStart(cur.position));
+                        },
+                        0x77 => { // End
+                            const doc = self.editor.activeDocument();
+                            const cur = self.editor.activeView().primaryCursorMut();
+                            cur.setPosition(doc.buffer.lineEnd(cur.position));
+                        },
+                        else => {},
+                    }
+                    self.editor.activeView().scrollToCursor();
+                }
+            },
+
+            Bridge.EVENT_MOUSE_DOWN => {
+                // Click to position cursor
+                const view = self.editor.activeView();
+                const pos  = view.coordsToPosition(ev.mouse_x, ev.mouse_y - 30.0); // -30 = tab bar height
+                view.primaryCursorMut().setPosition(pos);
+            },
+
+            else => {},
+        }
+    }
+
+    fn renderEditorFrame(self: *App, window: anytype) !void {
+        const renderer = &window.renderer;
+        const theme    = renderer.theme;
+        const W: f32   = @floatFromInt(window.width);
+        const H: f32   = @floatFromInt(window.height);
+        const doc      = self.editor.activeDocument();
+        const view     = self.editor.activeView();
+        const font_sz  : f32 = 14.0;
+        const line_h   : f32 = font_sz * 1.5;
+        const gutter_w : f32 = 52.0;
+        const tab_h    : f32 = 30.0;
+        const status_h : f32 = 22.0;
+        const editor_y0: f32 = tab_h;
+        const editor_y1: f32 = H - status_h;
+
+        // ── Tab bar background ────────────────────────────────────────────────
+        renderer.drawRect(0, 0, W, tab_h, theme.panel_background);
+        var tab_x: f32 = 0;
+        for (self.editor.documents.items, 0..) |d, idx| {
+            const is_active = idx == self.editor.active_document_index;
+            const bg = if (is_active) theme.tab_active_background else theme.tab_inactive_background;
+            const fg = if (is_active) theme.tab_active_foreground else theme.tab_inactive_foreground;
+            renderer.drawRect(tab_x, 0, 150, tab_h, bg);
+            // Active tab indicator bar
+            if (is_active) renderer.drawRect(tab_x, 0, 150, 2, theme.caret);
+            const dirty_mark = if (d.is_dirty) "● " else "";
+            const label = try std.fmt.allocPrintSentinel(self.allocator, " {s}{s} ", .{ dirty_mark, d.fileName() }, 0);
+            defer self.allocator.free(label);
+            renderer.drawText(label, tab_x + 8, tab_h - font_sz - 4, fg, font_sz);
+            tab_x += 150;
+        }
+
+        // ── Editor background ─────────────────────────────────────────────────
+        renderer.drawRect(0, editor_y0, W, editor_y1 - editor_y0, theme.background);
+
+        // ── Gutter ────────────────────────────────────────────────────────────
+        renderer.drawRect(0, editor_y0, gutter_w, editor_y1 - editor_y0, theme.gutter_background);
+
+        // ── Visible lines ─────────────────────────────────────────────────────
+        const visible   = view.getVisibleLineRange();
+        const cur_pos   = view.primaryCursor().position;
+        const cur_coord = doc.buffer.positionToLineCol(cur_pos);
+
+        // Highlight current line
+        const cur_line_y = editor_y0 + @as(f32, @floatFromInt(cur_coord.line - visible.start)) * line_h;
+        if (cur_coord.line >= visible.start and cur_coord.line < visible.end) {
+            renderer.drawRect(gutter_w, cur_line_y, W - gutter_w, line_h, theme.line_highlight);
+        }
+
+        var line_idx: usize = visible.start;
+        var screen_y: f32   = editor_y0 + 2;
+        while (line_idx < visible.end and screen_y < editor_y1) : ({
+            line_idx += 1;
+            screen_y += line_h;
+        }) {
+            // Gutter line number
+            const line_text = doc.buffer.getLine(line_idx) catch break;
+            defer self.allocator.free(line_text);
+
+            const is_cur = (line_idx == cur_coord.line);
+            const gutter_fg = if (is_cur) theme.gutter_active_foreground else theme.gutter_foreground;
+            const gnum = try std.fmt.allocPrintSentinel(self.allocator, "{d}", .{line_idx + 1}, 0);
+            defer self.allocator.free(gnum);
+            renderer.drawText(gnum, 4, screen_y, gutter_fg, font_sz);
+
+            // Syntax-highlighted text
+            var hl = try self.highlighter.highlightLine(line_text, line_idx);
+            defer hl.deinit();
+
+            for (hl.tokens.items) |tok| {
+                const tok_slice = line_text[
+                    @min(tok.start, line_text.len)..
+                    @min(tok.end,   line_text.len)
+                ];
+                if (tok_slice.len == 0) continue;
+                const tok_z = try self.allocator.dupeZ(u8, tok_slice);
+                defer self.allocator.free(tok_z);
+                const col = tokenColor(tok.type, &theme);
+                const tx  = gutter_w + @as(f32, @floatFromInt(tok.start)) * (font_sz * 0.6);
+                renderer.drawText(tok_z, tx, screen_y, col, font_sz);
+            }
+
+            // Cursor blinking (draw on current line)
+            if (is_cur and (renderer.frame_count / 30) % 2 == 0) {
+                const cx = gutter_w + @as(f32, @floatFromInt(cur_coord.col)) * (font_sz * 0.6);
+                renderer.drawRect(cx, cur_line_y, 2, line_h, theme.caret);
+            }
+        }
+
+        // ── Status bar ────────────────────────────────────────────────────────
+        renderer.drawRect(0, editor_y1, W, status_h, theme.statusbar_background);
+        const status = try std.fmt.allocPrintSentinel(self.allocator,
+            "  {s}   行 {d}/{d}  列 {d}  {s}  {s}",
+            .{ doc.fileName(), cur_coord.line + 1, doc.lineCount(),
+               cur_coord.col + 1, doc.language, "UTF-8" }
+        , 0);
+        defer self.allocator.free(status);
+        renderer.drawText(status, 4, editor_y1 + 4, theme.statusbar_foreground, font_sz - 1);
     }
 
     fn runHeadless(self: *App) !void {
