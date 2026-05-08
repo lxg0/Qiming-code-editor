@@ -123,15 +123,12 @@ pub const App = struct {
         const theme = tui.theme;
         const sz = try tui.getSize();
 
-        // ── Status bar ──────────────────────────────────────────────────────
+        // ── Scrollbar ──────────────────────────────────────────────────────────
         const status_y = sz.height -| 1;
         const lc = doc.lineCount();
         const cursor_pos = view.primaryCursor().position;
         const coord = doc.buffer.positionToLineCol(cursor_pos);
-        const status = try std.fmt.allocPrint(self.allocator,
-            " 启明编辑器  {s}  行 {d}/{d}  列 {d}  {s} ",
-            .{ doc.fileName(), coord.line + 1, lc, coord.col + 1, doc.language }
-        );
+        const status = try std.fmt.allocPrint(self.allocator, " 启明编辑器  {s}  行 {d}/{d}  列 {d}  {s} ", .{ doc.fileName(), coord.line + 1, lc, coord.col + 1, doc.language });
         defer self.allocator.free(status);
         try tui.drawText(status, 0, status_y, theme.statusbar_foreground, theme.statusbar_background);
 
@@ -156,7 +153,10 @@ pub const App = struct {
 
         var row: usize = line_area_start;
         var line_num: usize = visible.start;
-        while (row < line_area_end) : ({ row += 1; line_num += 1; }) {
+        while (row < line_area_end) : ({
+            row += 1;
+            line_num += 1;
+        }) {
             const line_text = doc.buffer.getLine(line_num) catch break;
             defer self.allocator.free(line_text);
 
@@ -209,10 +209,10 @@ pub const App = struct {
                         }
                     },
                     .backspace => try self.editor.deleteAtCursor(.left),
-                    .delete    => try self.editor.deleteAtCursor(.right),
+                    .delete => try self.editor.deleteAtCursor(.right),
                     .enter => try self.editor.insertAtCursor("\n"),
-                    .tab   => try self.editor.insertAtCursor("    "),
-                    .arrow_left  => {
+                    .tab => try self.editor.insertAtCursor("    "),
+                    .arrow_left => {
                         const cur = self.editor.activeView().primaryCursorMut();
                         if (cur.position > 0) cur.setPosition(cur.position - 1);
                     },
@@ -222,25 +222,25 @@ pub const App = struct {
                     },
                     .arrow_up => {
                         const cur = self.editor.activeView().primaryCursorMut();
-                        const pos  = cur.position;
-                        const ls   = doc.buffer.lineStart(pos);
+                        const pos = cur.position;
+                        const ls = doc.buffer.lineStart(pos);
                         if (ls == 0) {
                             cur.setPosition(0);
                         } else {
-                            const pls  = doc.buffer.lineStart(ls -| 1);
-                            const col  = pos - ls;
+                            const pls = doc.buffer.lineStart(ls -| 1);
+                            const col = pos - ls;
                             const plen = (ls - 1) - pls;
                             cur.setPosition(pls + @min(col, plen));
                         }
                     },
                     .arrow_down => {
                         const cur = self.editor.activeView().primaryCursorMut();
-                        const pos  = cur.position;
-                        const le   = doc.buffer.lineEnd(pos);
+                        const pos = cur.position;
+                        const le = doc.buffer.lineEnd(pos);
                         if (le < doc.buffer.len()) {
-                            const nls  = le + 1;
-                            const nle  = doc.buffer.lineEnd(nls);
-                            const col  = pos - doc.buffer.lineStart(pos);
+                            const nls = le + 1;
+                            const nle = doc.buffer.lineEnd(nls);
+                            const col = pos - doc.buffer.lineStart(pos);
                             const nlen = nle - nls;
                             cur.setPosition(nls + @min(col, nlen));
                         }
@@ -249,12 +249,12 @@ pub const App = struct {
                         const cur = self.editor.activeView().primaryCursorMut();
                         cur.setPosition(doc.buffer.lineStart(cur.position));
                     },
-                    .end  => {
+                    .end => {
                         const cur = self.editor.activeView().primaryCursorMut();
                         cur.setPosition(doc.buffer.lineEnd(cur.position));
                     },
-                    .page_up   => {
-                        const cur   = self.editor.activeView().primaryCursorMut();
+                    .page_up => {
+                        const cur = self.editor.activeView().primaryCursorMut();
                         const range = self.editor.activeView().getVisibleLineRange();
                         const lines = range.end - range.start;
                         var j: usize = 0;
@@ -264,7 +264,7 @@ pub const App = struct {
                         }
                     },
                     .page_down => {
-                        const cur   = self.editor.activeView().primaryCursorMut();
+                        const cur = self.editor.activeView().primaryCursorMut();
                         const range = self.editor.activeView().getVisibleLineRange();
                         const lines = range.end - range.start;
                         var j: usize = 0;
@@ -339,7 +339,7 @@ pub const App = struct {
             Bridge.EVENT_CLOSE => self.running = false,
 
             Bridge.EVENT_RESIZE => {
-                const w: u32 = @intCast(@max(ev.width,  1));
+                const w: u32 = @intCast(@max(ev.width, 1));
                 const h: u32 = @intCast(@max(ev.height, 1));
                 window.handleResize(w, h);
             },
@@ -382,10 +382,10 @@ pub const App = struct {
                 } else {
                     // Special keys by keycode (macOS Virtual Key codes)
                     switch (ev.keycode) {
-                        0x33 => try self.editor.deleteAtCursor(.left),   // Backspace
-                        0x75 => try self.editor.deleteAtCursor(.right),  // Delete
+                        0x33 => try self.editor.deleteAtCursor(.left), // Backspace
+                        0x75 => try self.editor.deleteAtCursor(.right), // Delete
                         0x24, 0x4C => try self.editor.insertAtCursor("\n"), // Return / numpad Enter
-                        0x30 => try self.editor.insertAtCursor("    "),   // Tab
+                        0x30 => try self.editor.insertAtCursor("    "), // Tab
                         // Arrow keys
                         0x7B => {
                             const cur = self.editor.activeView().primaryCursorMut();
@@ -399,7 +399,7 @@ pub const App = struct {
                         0x7E => { // Up
                             const doc = self.editor.activeDocument();
                             const cur = self.editor.activeView().primaryCursorMut();
-                            const ls  = doc.buffer.lineStart(cur.position);
+                            const ls = doc.buffer.lineStart(cur.position);
                             if (ls > 0) {
                                 const pls = doc.buffer.lineStart(ls -| 1);
                                 const col = cur.position - ls;
@@ -409,7 +409,7 @@ pub const App = struct {
                         0x7D => { // Down
                             const doc = self.editor.activeDocument();
                             const cur = self.editor.activeView().primaryCursorMut();
-                            const le  = doc.buffer.lineEnd(cur.position);
+                            const le = doc.buffer.lineEnd(cur.position);
                             if (le < doc.buffer.len()) {
                                 const col = cur.position - doc.buffer.lineStart(cur.position);
                                 const nle = doc.buffer.lineEnd(le + 1);
@@ -435,7 +435,7 @@ pub const App = struct {
             Bridge.EVENT_MOUSE_DOWN => {
                 // Click to position cursor
                 const view = self.editor.activeView();
-                const pos  = view.coordsToPosition(ev.mouse_x, ev.mouse_y - 30.0); // -30 = tab bar height
+                const pos = view.coordsToPosition(ev.mouse_x, ev.mouse_y - 30.0); // -30 = tab bar height
                 view.primaryCursorMut().setPosition(pos);
             },
 
@@ -444,75 +444,79 @@ pub const App = struct {
     }
 
     fn renderEditorFrame(self: *App, window: anytype) !void {
-        const r     = &window.renderer;
-        const t     = r.theme;
-        const W     = @as(f32, @floatFromInt(window.width));
-        const H     = @as(f32, @floatFromInt(window.height));
-        const doc   = self.editor.activeDocument();
-        const view  = self.editor.activeView();
-        const cfg   = &self.config;
+        const r = &window.renderer;
+        const t = r.theme;
+        const W = @as(f32, @floatFromInt(window.width));
+        const H = @as(f32, @floatFromInt(window.height));
+        const doc = self.editor.activeDocument();
+        const view = self.editor.activeView();
+        const cfg = &self.config;
 
         // ── VS Code-style layout geometry ─────────────────────────────────────
-        const font_sz   = cfg.font_size;
-        const line_h    = font_sz * 1.5;
-        const gutter_w  = @as(f32, if (cfg.line_numbers) 48.0 else 0.0);
-        // Activity bar (left side)
+        const font_sz = cfg.font_size;
+        const line_h = font_sz * 1.5;
+        const pad: f32 = 6.0;
+        const gutter_w = @as(f32, if (cfg.line_numbers) 48.0 else 0.0);
         const act_bar_w = @as(f32, if (cfg.activity_bar_visible) 48.0 else 0.0);
-        // Tab bar + breadcrumb
-        const tab_h     = cfg.tab_bar_height;
-        const bread_h   = @as(f32, if (cfg.breadcrumb_visible) cfg.breadcrumb_height else 0.0);
-        // Status bar
-        const status_h  = @as(f32, if (cfg.status_bar_visible) cfg.status_bar_height else 0.0);
-        // Sidebar (left of editor)
-        const side_w    = @as(f32, if (cfg.sidebar_visible) cfg.sidebar_width else 0.0);
-        // Bottom panel (output, terminal, problems)
-        const bot_h     = @as(f32, if (cfg.bottom_panel_visible) cfg.bottom_panel_height else 0.0);
+        const tab_h = cfg.tab_bar_height;
+        const status_h = @as(f32, if (cfg.status_bar_visible) cfg.status_bar_height else 0.0);
+        const side_w = @as(f32, if (cfg.sidebar_visible) cfg.sidebar_width else 0.0);
+        const bot_h = @as(f32, if (cfg.bottom_panel_visible) cfg.bottom_panel_height else 0.0);
 
-        const top_bar_h  = tab_h + bread_h;
-        const edit_area_y0 = top_bar_h;
+        const edit_area_y0 = tab_h;
         const edit_area_y1 = H - status_h - bot_h;
-        const edit_left_x  = act_bar_w + side_w;
-        const edit_W       = W - edit_left_x;
-        const edit_H       = edit_area_y1 - edit_area_y0;
+        const edit_left_x = act_bar_w + side_w;
+        const edit_W = W - edit_left_x - 12.0;
+        const edit_H = edit_area_y1 - edit_area_y0;
 
-        // ── 1. Tab bar background ──────────────────────────────────────────────
-        r.drawRect(0, 0, W, tab_h, t.panel_background);
-        var tab_x: f32 = act_bar_w;
+        // ── 1. Tab bar ─────────────────────────────────────────────────────────
+        r.drawRect(act_bar_w, 0, W - act_bar_w, tab_h, t.panel_background);
+        r.drawRect(act_bar_w, tab_h - 1, W - act_bar_w, 1, t.panel_border);
+        var tbx: f32 = act_bar_w;
         for (self.editor.documents.items, 0..) |d, idx| {
-            const is_active = idx == self.editor.active_document_index;
-            const bg = if (is_active) t.tab_active_background else t.tab_inactive_background;
-            const fg = if (is_active) t.tab_active_foreground else t.tab_inactive_foreground;
-            const tw = 140.0;
-            r.drawRect(tab_x, 0, tw, tab_h, bg);
-            if (is_active) r.drawRect(tab_x, 0, tw, 2, t.caret);
-            const marker = if (d.is_dirty) "● " else "";
-            const label = try std.fmt.allocPrintSentinel(self.allocator, " {s}{s} ", .{ marker, d.fileName() }, 0);
+            const active = idx == self.editor.active_document_index;
+            const tb_bg = if (active) t.tab_active_background else t.panel_background;
+            const tb_fg = if (active) t.tab_active_foreground else t.tab_inactive_foreground;
+            const tb_w: f32 = 140.0;
+            r.drawRect(tbx, 1, tb_w, tab_h - 1, tb_bg);
+            if (active) r.drawRect(tbx, 0, tb_w, 2, t.caret);
+            // Label
+            const prefix = if (d.is_dirty) "● " else "";
+            const label = try std.fmt.allocPrintSentinel(self.allocator, "{s}{s}", .{ prefix, d.fileName() }, 0);
             defer self.allocator.free(label);
-            r.drawText(label, tab_x + 6, (tab_h - font_sz) * 0.5, fg, font_sz);
-            tab_x += tw;
+            r.drawText(label, tbx + pad, (tab_h - font_sz) * 0.5, tb_fg, font_sz);
+            // Close X
+            r.drawRect(tbx + tb_w - 20, 10, 14, 14, t.panel_border);
+            const xb = try std.fmt.allocPrintSentinel(self.allocator, "x", .{}, 0);
+            defer self.allocator.free(xb);
+            r.drawText(xb, tbx + tb_w - 17, 10, tb_fg, font_sz - 2);
+            tbx += tb_w;
         }
 
-        // ── 2. Activity bar (VS Code left strip) ───────────────────────────────
+        // ── 2. Activity bar ──────────────────────────────────────────────────
         if (cfg.activity_bar_visible) {
             r.drawRect(0, tab_h, act_bar_w, H - tab_h, t.sidebar_background);
-            const icons = [_][]const u8{ "📁", "🔍", "⎔", "🔌", "⚙" };
-            var iy: f32 = 8;
-            for (icons) |icon| {
-
-                const iz = try std.fmt.allocPrintSentinel(self.allocator, "{s}", .{icon}, 0);
+            const items = [_][]const u8{ "Expl", "Srch", "SCM", "Run", "Extn" };
+            var iy: f32 = tab_h + 6;
+            for (items) |label| {
+                const iz = try std.fmt.allocPrintSentinel(self.allocator, "{s}", .{label}, 0);
                 defer self.allocator.free(iz);
-                r.drawText(iz, 8, tab_h + iy, t.panel_foreground, font_sz + 4);
-                iy += 36;
+                r.drawText(iz, 4, iy, t.panel_foreground, font_sz - 2);
+                iy += 42;
             }
-            // Separator line
-            r.drawRect(act_bar_w - 1, tab_h, 1, H - tab_h, t.panel_border);
+            r.drawRect(act_bar_w - 1, 0, 1, H, t.panel_border);
         }
 
-        // ── 3. Sidebar (file explorer / search) ────────────────────────────────
+        // ── 3. Sidebar ─────────────────────────────────────────────────────────
         if (cfg.sidebar_visible) {
             const sx = act_bar_w;
-            r.drawRect(sx, tab_h, side_w, H - tab_h, t.panel_background);
-            r.drawRect(sx + side_w - 1, tab_h, 1, H - tab_h, t.panel_border);
+            r.drawRect(sx, tab_h, side_w, edit_H + bot_h + status_h, t.panel_background);
+            r.drawRect(sx + side_w - 1, tab_h, 1, edit_H + bot_h + status_h, t.panel_border);
+            // Sidebar header
+            r.drawRect(sx, tab_h, side_w, 24, t.panel_border);
+            const sh = try std.fmt.allocPrintSentinel(self.allocator, "资源管理器", .{}, 0);
+            defer self.allocator.free(sh);
+            r.drawText(sh, sx + pad, tab_h + 4, t.panel_foreground, font_sz - 1);
         }
 
         // ── 4. Editor area background ───────────────────────────────────────────
@@ -526,11 +530,11 @@ pub const App = struct {
         }
 
         // ── 6. Visible editor lines ───────────────────────────────────────────
-        const visible    = view.getVisibleLineRange();
-        const cur_pos    = view.primaryCursor().position;
-        const cur_coord  = doc.buffer.positionToLineCol(cur_pos);
-        const editor_x0  = gx + gutter_w;
-        const editor_W2  = edit_W - gutter_w;
+        const visible = view.getVisibleLineRange();
+        const cur_pos = view.primaryCursor().position;
+        const cur_coord = doc.buffer.positionToLineCol(cur_pos);
+        const editor_x0 = gx + gutter_w;
+        const editor_W2 = edit_W - gutter_w;
 
         // Current line highlight
         const cur_screen_line = cur_coord.line -| visible.start;
@@ -540,8 +544,11 @@ pub const App = struct {
         }
 
         var li: usize = visible.start;
-        var sy: f32    = edit_area_y0 + 2;
-        while (li < visible.end and sy < edit_area_y1) : ({ li += 1; sy += line_h; }) {
+        var sy: f32 = edit_area_y0 + 2;
+        while (li < visible.end and sy < edit_area_y1) : ({
+            li += 1;
+            sy += line_h;
+        }) {
             const lt = doc.buffer.getLine(li) catch break;
             defer self.allocator.free(lt);
             const is_cur_line = (li == cur_coord.line);
@@ -579,21 +586,14 @@ pub const App = struct {
         if (cfg.status_bar_visible) {
             const sb_y = H - status_h;
             r.drawRect(0, sb_y, W, status_h, t.statusbar_background);
-            const status = try std.fmt.allocPrintSentinel(self.allocator,
-                "  {s}  |  行 {d}:{d}  |  {s}  |  UTF-8  |  字体 {d}px",
-                .{ doc.fileName(), cur_coord.line + 1, cur_coord.col + 1,
-                   doc.language, @as(u32, @intFromFloat(font_sz)) }
-            , 0);
+            const status = try std.fmt.allocPrintSentinel(self.allocator, "  {s}  |  行 {d}:{d}  |  {s}  |  UTF-8  |  字体 {d}px", .{ doc.fileName(), cur_coord.line + 1, cur_coord.col + 1, doc.language, @as(u32, @intFromFloat(font_sz)) }, 0);
             defer self.allocator.free(status);
-            r.drawText(status, act_bar_w + side_w + 4, sb_y + 3, t.statusbar_foreground, font_sz - 1);
+            r.drawText(status, act_bar_w + side_w + 4, sb_y + 2, t.statusbar_foreground, font_sz - 1);
 
             // Right side: line ending, encoding, language info
-            const right_info = try std.fmt.allocPrintSentinel(self.allocator,
-                "  {s}  {s}  Tab: {d}",
-                .{ "LF", "UTF-8", cfg.tab_size }
-            , 0);
+            const right_info = try std.fmt.allocPrintSentinel(self.allocator, "LF  UTF-8  Tab: {d}  {d}x  ▥", .{ cfg.tab_size, @as(u32, @intFromFloat(r.scale)) }, 0);
             defer self.allocator.free(right_info);
-            r.drawText(right_info, W - 200, sb_y + 3, t.statusbar_foreground, font_sz - 1);
+            r.drawText(right_info, W - 200, sb_y + 2, t.statusbar_foreground, font_sz - 1);
         }
 
         // ── 8. Bottom panel (terminal / problems) ───────────────────────────────
@@ -628,26 +628,26 @@ pub const App = struct {
 /// Map token type to TUI foreground color from current theme
 fn tokenColor(ttype: TokenType, theme: *const @import("../rendering/Theme.zig").Theme) Color {
     return switch (ttype) {
-        .keyword         => theme.syntax.keyword,
-        .string          => theme.syntax.string,
-        .number          => theme.syntax.number,
-        .comment         => theme.syntax.comment,
-        .function        => theme.syntax.function,
-        .type            => theme.syntax.type,
-        .variable        => theme.syntax.variable,
-        .constant        => theme.syntax.constant,
-        .operator        => theme.syntax.operator,
-        .punctuation     => theme.syntax.punctuation,
-        .parameter       => theme.syntax.parameter,
-        .property        => theme.syntax.property,
-        .tag             => theme.syntax.tag,
-        .attribute       => theme.syntax.attribute,
-        .regex           => theme.syntax.regex,
-        .markup_heading  => theme.syntax.markup_heading,
-        .markup_link     => theme.syntax.markup_link,
-        .markup_list     => theme.syntax.markup_list,
+        .keyword => theme.syntax.keyword,
+        .string => theme.syntax.string,
+        .number => theme.syntax.number,
+        .comment => theme.syntax.comment,
+        .function => theme.syntax.function,
+        .type => theme.syntax.type,
+        .variable => theme.syntax.variable,
+        .constant => theme.syntax.constant,
+        .operator => theme.syntax.operator,
+        .punctuation => theme.syntax.punctuation,
+        .parameter => theme.syntax.parameter,
+        .property => theme.syntax.property,
+        .tag => theme.syntax.tag,
+        .attribute => theme.syntax.attribute,
+        .regex => theme.syntax.regex,
+        .markup_heading => theme.syntax.markup_heading,
+        .markup_link => theme.syntax.markup_link,
+        .markup_list => theme.syntax.markup_list,
         .markup_inline_code => theme.syntax.markup_inline_code,
-        .markup_code_block  => theme.syntax.markup_code_block,
-        else             => theme.foreground,
+        .markup_code_block => theme.syntax.markup_code_block,
+        else => theme.foreground,
     };
 }

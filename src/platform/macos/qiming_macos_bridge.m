@@ -326,7 +326,7 @@ static id<MTLRenderPipelineState> qiming_make_text_pipeline(id<MTLDevice> device
 // Glyph atlas
 // ─────────────────────────────────────────────────────────────────────────────
 
-#define ATLAS_SIZE 1024
+#define ATLAS_SIZE 2048
 
 static id<MTLTexture> qiming_make_glyph_atlas(id<MTLDevice> device) {
     MTLTextureDescriptor *td = [MTLTextureDescriptor new];
@@ -598,11 +598,29 @@ static GlyphEntry *qiming_rasterize_glyph(uint32_t codepoint, float size,
                                             const char *font_name) {
     if (s_glyph_cache_count >= GLYPH_CACHE_SIZE) return NULL;
 
-    // Create CTFont
-    CFStringRef fn = font_name
-        ? CFStringCreateWithCString(NULL, font_name, kCFStringEncodingUTF8)
-        : CFSTR("Menlo");
+    // Detect CJK codepoint and choose appropriate font
+    bool is_cjk = ((codepoint >= 0x4E00 && codepoint <= 0x9FFF)
+                || (codepoint >= 0x3400 && codepoint <= 0x4DBF)
+                || (codepoint >= 0x2E80 && codepoint <= 0x2EFF)
+                || (codepoint >= 0x3000 && codepoint <= 0x303F)
+                || (codepoint >= 0xFF00 && codepoint <= 0xFFEF)
+                || (codepoint >= 0x3040 && codepoint <= 0x30FF)
+                || (codepoint >= 0xAC00 && codepoint <= 0xD7AF)
+                || (codepoint >= 0xF900 && codepoint <= 0xFAFF)
+                || (codepoint >= 0xFE30 && codepoint <= 0xFE4F)
+                || (codepoint >= 0x20000 && codepoint <= 0x2FFFF));
+
+    const char *use_font = font_name;
+    if (!use_font || !*use_font) {
+        use_font = is_cjk ? "PingFang SC" : "Menlo";
+    }
+
+    CFStringRef fn = CFStringCreateWithCString(NULL, use_font, kCFStringEncodingUTF8);
     CTFontRef font = CTFontCreateWithName(fn, size, NULL);
+    if (!font) {
+        // Fallback to system font
+        font = CTFontCreateUIFontForLanguage(kCTFontUIFontSystem, size, NULL);
+    }
     CFRelease(fn);
 
     // Get glyph for codepoint
@@ -730,11 +748,13 @@ void qiming_metal_draw_text(const char *utf8_text,
         p += bytes;
 
         if (cp == '\n') { cx = x; y += lh; continue; }
-        if (cp == ' ')  { cx += font_size * 0.5f; continue; }
+        if (cp == ' ')  { cx += font_size * 0.37f; continue; }  // space width ~0.37em for Menlo
 
         GlyphEntry *ge = qiming_find_glyph(cp, font_size);
         if (!ge) ge = qiming_rasterize_glyph(cp, font_size, font_name);
         if (!ge) { cx += font_size * 0.5f; continue; }
+        // Use actual CoreText glyph advance, not fixed-width
+        // ge->advance already stores the proper glyph advance from CTFontGetAdvancesForGlyphs
 
         float gx0 = cx + ge->bearingX;
         float gy0 = y  - ge->bearingY - ge->ah;
